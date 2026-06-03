@@ -44,15 +44,21 @@ def imagen_base64(ruta):
     ruta = Path(ruta)
 
     if ruta.exists():
-        with open(ruta, "rb") as imagen:
-            return base64.b64encode(imagen.read()).decode()
+        return base64.b64encode(
+            ruta.read_bytes()
+        ).decode()
 
     return None
 
 
 def formato_clp(valor):
     try:
-        monto = "{:,.0f}".format(float(valor)).replace(",", ".")
+        monto = (
+            "{:,.0f}"
+            .format(float(valor))
+            .replace(",", ".")
+        )
+
         return f"CLP $ {monto}"
 
     except Exception:
@@ -61,22 +67,29 @@ def formato_clp(valor):
 
 def formato_clp_html(valor):
     try:
-        monto = "{:,.0f}".format(float(valor)).replace(",", ".")
+        monto = (
+            "{:,.0f}"
+            .format(float(valor))
+            .replace(",", ".")
+        )
 
     except Exception:
         monto = "0"
 
     return (
         '<span class="monto-clp">'
-        '<span class="moneda-clp">CLP &#36;</span>'
-        f'<span class="numero-clp">{monto}</span>'
-        "</span>"
+        '<span>CLP &#36;</span>'
+        f'<span>{monto}</span>'
+        '</span>'
     )
 
 
 def formato_porcentaje(valor):
     try:
-        return f"{valor:.1%}".replace(".", ",")
+        return (
+            f"{valor:.1%}"
+            .replace(".", ",")
+        )
 
     except Exception:
         return "0,0%"
@@ -101,7 +114,10 @@ def ordenar_meses(lista_meses):
 
     return sorted(
         lista_meses,
-        key=lambda mes: orden.get(str(mes), 99),
+        key=lambda mes: orden.get(
+            str(mes),
+            99,
+        ),
     )
 
 
@@ -113,10 +129,12 @@ def cargar_datos():
         )
 
     except Exception as error:
-        st.error(f"No se pudo cargar el archivo Excel: {error}")
+        st.error(
+            f"No se pudo cargar el archivo Excel: {error}"
+        )
+
         st.stop()
 
-    # Estos nombres deben mantenerse iguales a los encabezados del Excel.
     columnas_requeridas = [
         "Año",
         "Mes",
@@ -136,6 +154,7 @@ def cargar_datos():
         st.error(
             f"Faltan columnas en la hoja '{HOJA_DATOS}': {faltantes}"
         )
+
         st.stop()
 
     df["Fecha_Mes"] = pd.to_datetime(
@@ -161,7 +180,9 @@ def cargar_datos():
     return df
 
 
-def evaluar_estado_presupuestario(uso_presupuesto):
+def evaluar_estado_presupuestario(
+    uso_presupuesto
+):
     if uso_presupuesto <= 0.85:
         return (
             "Dentro de presupuesto",
@@ -193,67 +214,27 @@ def tarjeta_metrica(
 
     if subtitulo:
         subtitulo_html = (
-            f'<div class="metric-subtitle">{subtitulo}</div>'
+            f'<div class="metric-subtitle">'
+            f'{subtitulo}'
+            f'</div>'
         )
 
-    html_tarjeta = (
-        f'<div class="metric-card {clase_extra}">'
-        f'<div class="metric-title">{titulo}</div>'
-        f'<div class="metric-value">{valor}</div>'
-        f'{subtitulo_html}'
-        f'</div>'
-    )
-
     st.markdown(
-        html_tarjeta,
+        (
+            f'<div class="metric-card {clase_extra}">'
+            f'<div class="metric-title">{titulo}</div>'
+            f'<div class="metric-value">{valor}</div>'
+            f'{subtitulo_html}'
+            f'</div>'
+        ),
         unsafe_allow_html=True,
     )
 
 
-def aplicar_formato_eje_clp(
+def aplicar_tema_grafico(
     fig,
-    df_valores,
-    columna="Monto_CLP",
-    titulo_eje="Monto CLP",
+    altura=460,
 ):
-    if df_valores.empty:
-        return fig
-
-    maximo = df_valores[columna].abs().max()
-    minimo = df_valores[columna].min()
-
-    if maximo <= 0:
-        tickvals = [0]
-
-    else:
-        tickvals = [
-            -maximo if minimo < 0 else 0,
-            0,
-            maximo * 0.25,
-            maximo * 0.50,
-            maximo * 0.75,
-            maximo,
-        ]
-
-    tickvals = sorted(set(tickvals))
-
-    fig.update_yaxes(
-        title_text=titulo_eje,
-        tickmode="array",
-        tickvals=tickvals,
-        ticktext=[
-            formato_clp(valor)
-            for valor in tickvals
-        ],
-        showgrid=True,
-        exponentformat="none",
-        separatethousands=False,
-    )
-
-    return fig
-
-
-def aplicar_tema_grafico(fig, altura=460):
     fig.update_layout(
         height=altura,
         title_font_size=20,
@@ -263,11 +244,6 @@ def aplicar_tema_grafico(fig, altura=460):
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         legend_title_text="",
-        legend=dict(
-            font=dict(
-                color="#E5E7EB",
-            )
-        ),
         margin=dict(
             l=20,
             r=20,
@@ -279,13 +255,64 @@ def aplicar_tema_grafico(fig, altura=460):
     fig.update_xaxes(
         color="#CBD5E1",
         gridcolor="rgba(148,163,184,0.16)",
-        zerolinecolor="rgba(148,163,184,0.28)",
     )
 
     fig.update_yaxes(
         color="#CBD5E1",
         gridcolor="rgba(148,163,184,0.16)",
-        zerolinecolor="rgba(148,163,184,0.28)",
+    )
+
+    return fig
+
+
+def aplicar_formato_eje_clp(
+    fig,
+    df_valores,
+    columna="Monto_CLP",
+    titulo_eje="Monto CLP",
+):
+    if df_valores.empty:
+        return fig
+
+    maximo = df_valores[
+        columna
+    ].abs().max()
+
+    minimo = df_valores[
+        columna
+    ].min()
+
+    if maximo <= 0:
+        tickvals = [
+            0
+        ]
+
+    else:
+        tickvals = sorted(
+            set(
+                [
+                    -maximo if minimo < 0 else 0,
+                    0,
+                    maximo * 0.25,
+                    maximo * 0.50,
+                    maximo * 0.75,
+                    maximo,
+                ]
+            )
+        )
+
+    fig.update_yaxes(
+        title_text=titulo_eje,
+        tickmode="array",
+        tickvals=tickvals,
+        ticktext=[
+            formato_clp(
+                valor
+            )
+            for valor in tickvals
+        ],
+        exponentformat="none",
+        separatethousands=False,
     )
 
     return fig
@@ -295,7 +322,9 @@ def aplicar_tema_grafico(fig, altura=460):
 # DISENO VISUAL
 # ============================================================
 
-sello_b64 = imagen_base64(SELLO_AGUA)
+sello_b64 = imagen_base64(
+    SELLO_AGUA
+)
 
 sello_css = ""
 
@@ -309,7 +338,8 @@ if sello_b64:
         transform: translateX(-50%);
         width: 760px;
         height: 760px;
-        background-image: url("data:image/png;base64,{sello_b64}");
+        background-image:
+            url("data:image/png;base64,{sello_b64}");
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain;
@@ -328,9 +358,6 @@ st.markdown(
 
     :root {{
         --fondo-principal: #25282D;
-        --fondo-sidebar: #1E2125;
-        --fondo-barra: #15171A;
-        --fondo-tarjeta: #31353B;
         --fondo-secundario: #2B2F34;
         --borde-suave: #454B53;
         --texto-principal: #F1F5F9;
@@ -343,48 +370,35 @@ st.markdown(
         color-scheme: dark;
     }}
 
-    body {{
-        background-color: var(--fondo-principal);
-    }}
-
+    body,
     .stApp {{
         background-color: var(--fondo-principal);
         color: var(--texto-principal);
     }}
 
-    /* Oculta la barra original de Streamlit */
-    header[data-testid="stHeader"] {{
-        background-color: transparent;
-        height: 0;
-        min-height: 0;
+    header[data-testid="stHeader"],
+    div[data-testid="stToolbar"],
+    footer,
+    section[data-testid="stSidebar"],
+    button[data-testid="stSidebarCollapsedControl"] {{
+        display: none !important;
     }}
 
-    div[data-testid="stToolbar"] {{
-        visibility: hidden;
-        height: 0;
-    }}
-
-    footer {{
-        visibility: hidden;
-        height: 0;
-    }}
-
-    /* Barra superior fija */
     .barra-superior {{
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
-        width: 100%;
         height: 64px;
         z-index: 999999;
         display: flex;
         align-items: center;
         justify-content: center;
         background: rgba(21, 23, 26, 0.98);
-        border-bottom: 1px solid rgba(148, 163, 184, 0.26);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.30);
-        backdrop-filter: blur(10px);
+        border-bottom:
+            1px solid rgba(148, 163, 184, 0.26);
+        box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.30);
     }}
 
     .barra-superior-titulo {{
@@ -400,16 +414,6 @@ st.markdown(
         padding-bottom: 1.5rem;
         position: relative;
         z-index: 1;
-    }}
-
-    section[data-testid="stSidebar"] {{
-        padding-top: 64px;
-        background-color: var(--fondo-sidebar);
-        border-right: 1px solid var(--borde-suave);
-    }}
-
-    section[data-testid="stSidebar"] * {{
-        color: var(--texto-principal);
     }}
 
     h1,
@@ -430,8 +434,43 @@ st.markdown(
         line-height: 1.55;
     }}
 
-    .logo-box {{
-        padding-top: 5px;
+    .panel-filtros {{
+        margin: 6px auto 22px auto;
+        padding: 20px 22px;
+        background: rgba(43, 47, 52, 0.96);
+        border: 1px solid var(--borde-suave);
+        border-radius: 16px;
+        box-shadow:
+            0 5px 18px rgba(0, 0, 0, 0.18);
+    }}
+
+    .titulo-panel-filtros {{
+        margin-bottom: 4px;
+        color: var(--texto-principal);
+        font-size: 21px;
+        font-weight: 850;
+        text-align: center;
+        letter-spacing: 0.3px;
+    }}
+
+    .subtitulo-panel-filtros {{
+        margin-bottom: 16px;
+        color: var(--texto-secundario);
+        font-size: 14px;
+        font-weight: 600;
+        text-align: center;
+    }}
+
+    .filtro-fijo {{
+        margin-bottom: 2px;
+        padding: 14px 16px;
+        color: var(--texto-principal);
+        background: #24282D;
+        border: 1px solid var(--borde-suave);
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 750;
+        letter-spacing: 0.2px;
     }}
 
     .metric-card {{
@@ -441,7 +480,8 @@ st.markdown(
         background: rgba(49, 53, 59, 0.96);
         border: 1px solid var(--borde-suave);
         border-radius: 18px;
-        box-shadow: 0 5px 18px rgba(0, 0, 0, 0.20);
+        box-shadow:
+            0 5px 18px rgba(0, 0, 0, 0.20);
     }}
 
     .metric-title {{
@@ -467,16 +507,8 @@ st.markdown(
 
     .monto-clp {{
         display: inline-flex;
-        flex-direction: row;
-        align-items: baseline;
         gap: 7px;
         white-space: nowrap;
-    }}
-
-    .moneda-clp,
-    .numero-clp {{
-        display: inline-block;
-        color: inherit;
         font-weight: 850;
     }}
 
@@ -492,18 +524,8 @@ st.markdown(
         border-left: 7px solid #EF4444;
     }}
 
-    .filtro-fijo {{
-        margin-bottom: 12px;
-        padding: 12px;
-        color: var(--texto-principal);
-        background: var(--fondo-secundario);
-        border: 1px solid var(--borde-suave);
-        border-radius: 12px;
-        font-size: 15px;
-        font-weight: 650;
-    }}
-
-    .nota-presupuesto {{
+    .nota-presupuesto,
+    .resumen-ejecutivo {{
         margin-bottom: 18px;
         padding: 16px 20px;
         color: var(--texto-secundario);
@@ -517,60 +539,37 @@ st.markdown(
 
     .resumen-ejecutivo {{
         margin-bottom: 24px;
-        padding: 18px 22px;
-        color: var(--texto-secundario);
-        background: linear-gradient(
-            135deg,
-            rgba(49,53,59,0.98) 0%,
-            rgba(43,47,52,0.98) 100%
-        );
-        border: 1px solid var(--borde-suave);
-        border-left: 6px solid var(--acento);
+        border-left-width: 6px;
         border-radius: 16px;
-        box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
         font-size: 16px;
-        line-height: 1.65;
     }}
 
-    div[data-baseweb="select"] > div,
-    div[data-baseweb="base-input"] > div,
-    div[data-testid="stTextInputRootElement"] {{
-        background-color: var(--fondo-secundario) !important;
-        border-color: var(--borde-suave) !important;
-        color: var(--texto-principal) !important;
+    div[data-baseweb="select"] > div {{
+        background-color:
+            var(--fondo-secundario) !important;
+        border-color:
+            var(--borde-suave) !important;
+        color:
+            var(--texto-principal) !important;
     }}
 
     div[data-baseweb="tag"] {{
         background-color: #3B82F6 !important;
     }}
 
-    div[data-testid="stDataFrame"] {{
-        background-color: var(--fondo-secundario);
-        border: 1px solid var(--borde-suave);
-        border-radius: 12px;
-        overflow: hidden;
-    }}
-
-    div[data-testid="stNotification"] {{
-        background-color: var(--fondo-secundario);
-        color: var(--texto-principal);
-        border: 1px solid var(--borde-suave);
-    }}
-
     .footer-panel {{
         width: 100%;
         margin-top: 44px;
-        padding: 20px 0 14px 0;
-        border-top: 1px solid rgba(148, 163, 184, 0.30);
+        padding: 20px 0 14px;
+        border-top:
+            1px solid rgba(148, 163, 184, 0.30);
         text-align: center;
-        background-color: transparent;
     }}
 
     .footer-title {{
         color: #F1F5F9;
         font-size: 15px;
         font-weight: 750;
-        letter-spacing: 0.2px;
     }}
 
     .footer-subtitle {{
@@ -584,7 +583,6 @@ st.markdown(
         margin-top: 5px;
         color: #94A3B8;
         font-size: 12px;
-        font-weight: 500;
     }}
 
     @media (max-width: 768px) {{
@@ -601,10 +599,6 @@ st.markdown(
         .block-container {{
             padding-top: 4.8rem;
         }}
-
-        section[data-testid="stSidebar"] {{
-            padding-top: 58px;
-        }}
     }}
 
     </style>
@@ -617,16 +611,14 @@ st.markdown(
 # BARRA SUPERIOR FIJA
 # ============================================================
 
-html_barra_superior = (
-    '<div class="barra-superior">'
-    '<div class="barra-superior-titulo">'
-    'ANALISIS DE INSUMOS DEL CONTRATO MULCHEN'
-    '</div>'
-    '</div>'
-)
-
 st.markdown(
-    html_barra_superior,
+    (
+        '<div class="barra-superior">'
+        '<div class="barra-superior-titulo">'
+        'ANALISIS DE INSUMOS DEL CONTRATO MULCHEN'
+        '</div>'
+        '</div>'
+    ),
     unsafe_allow_html=True,
 )
 
@@ -637,30 +629,32 @@ st.markdown(
 
 df = cargar_datos()
 
-if TIPO_FIJO in df["Tipo"].unique():
+if TIPO_FIJO in df[
+    "Tipo"
+].unique():
+
     df = df[
         df["Tipo"] == TIPO_FIJO
     ].copy()
 
+
 df["Detalle"] = "Gasto registrado Excel"
 
-meses_base = (
-    df[
-        [
-            "Año",
-            "Mes",
-            "Fecha_Mes",
-        ]
+meses_base = df[
+    [
+        "Año",
+        "Mes",
+        "Fecha_Mes",
     ]
-    .drop_duplicates()
-    .copy()
-)
+].drop_duplicates().copy()
 
 df_ropa = meses_base.copy()
 
 df_ropa["Área"] = "EPP"
 df_ropa["Tipo"] = TIPO_FIJO
-df_ropa["Monto_CLP"] = GASTO_MENSUAL_ROPA_TRABAJO
+df_ropa["Monto_CLP"] = (
+    GASTO_MENSUAL_ROPA_TRABAJO
+)
 df_ropa["Detalle"] = "Ropa de trabajo"
 
 df = pd.concat(
@@ -691,22 +685,23 @@ with col_titulo:
     st.markdown(
         (
             '<div class="texto-intro">'
-            'Herramienta de analisis ejecutivo orientada al seguimiento y control '
-            'mensual de los insumos asociados al contrato, incorporando el gasto '
-            'de ropa de trabajo dentro del area EPP, sin modificar el presupuesto '
-            'oficial asignado.'
+            'Herramienta de analisis ejecutivo orientada '
+            'al seguimiento y control mensual de los '
+            'insumos asociados al contrato, incorporando '
+            'el gasto de ropa de trabajo dentro del area '
+            'EPP, sin modificar el presupuesto oficial '
+            'asignado.'
             '</div>'
         ),
         unsafe_allow_html=True,
     )
 
-with col_logo:
-    st.markdown(
-        '<div class="logo-box">',
-        unsafe_allow_html=True,
-    )
 
-    if Path(LOGO_SUPERIOR).exists():
+with col_logo:
+    if Path(
+        LOGO_SUPERIOR
+    ).exists():
+
         st.image(
             LOGO_SUPERIOR,
             use_container_width=True,
@@ -717,21 +712,13 @@ with col_logo:
             "Agregar logo1.png"
         )
 
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True,
-    )
 
 st.divider()
 
 
 # ============================================================
-# FILTROS
+# FILTROS CENTRADOS
 # ============================================================
-
-st.sidebar.header(
-    "Filtros de analisis"
-)
 
 anios = sorted(
     df["Año"]
@@ -751,55 +738,97 @@ areas = sorted(
     .unique()
 )
 
-detalles = sorted(
-    df["Detalle"]
-    .dropna()
-    .unique()
+col_espacio_izq, col_filtros, col_espacio_der = (
+    st.columns(
+        [
+            1,
+            8,
+            1,
+        ]
+    )
 )
 
-filtro_anio = st.sidebar.multiselect(
-    "Año",
-    options=anios,
-    default=anios,
-)
+with col_filtros:
+    st.markdown(
+        (
+            '<div class="panel-filtros">'
+            '<div class="titulo-panel-filtros">'
+            'Filtros de analisis'
+            '</div>'
+            '<div class="subtitulo-panel-filtros">'
+            'Seleccione los criterios para actualizar '
+            'los indicadores y graficos'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
 
-filtro_mes = st.sidebar.multiselect(
-    "Mes",
-    options=meses,
-    default=meses,
-)
+    col_f1, col_f2, col_f3 = st.columns(
+        3
+    )
 
-filtro_area = st.sidebar.multiselect(
-    "Area",
-    options=areas,
-    default=areas,
-)
+    with col_f1:
+        filtro_anio = st.multiselect(
+            "Año de analisis",
+            options=anios,
+            default=anios,
+        )
 
-filtro_detalle = st.sidebar.multiselect(
-    "Detalle",
-    options=detalles,
-    default=detalles,
-)
+    with col_f2:
+        filtro_mes = st.multiselect(
+            "Mes de analisis",
+            options=meses,
+            default=meses,
+        )
 
-st.sidebar.markdown(
-    "Concepto / Item"
-)
+    with col_f3:
+        filtro_area = st.multiselect(
+            "Area de gasto",
+            options=areas,
+            default=areas,
+        )
 
-st.sidebar.markdown(
-    (
-        '<div class="filtro-fijo">'
-        f'{TIPO_FIJO}'
-        '</div>'
-    ),
-    unsafe_allow_html=True,
-)
+    st.markdown(
+        "**Tipo de gasto considerado**"
+    )
 
+    st.markdown(
+        (
+            '<div class="filtro-fijo">'
+            f'{TIPO_FIJO}'
+            '</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+st.divider()
+
+
+# El filtro de detalle fue eliminado.
+# Ambos conceptos se consideran internamente.
 df_filtrado = df[
-    (df["Año"].isin(filtro_anio))
-    & (df["Mes"].isin(filtro_mes))
-    & (df["Área"].isin(filtro_area))
-    & (df["Detalle"].isin(filtro_detalle))
+    (
+        df["Año"]
+        .isin(
+            filtro_anio
+        )
+    )
+    & (
+        df["Mes"]
+        .isin(
+            filtro_mes
+        )
+    )
+    & (
+        df["Área"]
+        .isin(
+            filtro_area
+        )
+    )
 ].copy()
+
 
 if df_filtrado.empty:
     st.warning(
@@ -817,6 +846,7 @@ total_gasto = df_filtrado[
     "Monto_CLP"
 ].sum()
 
+
 gasto_mensual = (
     df_filtrado
     .groupby(
@@ -833,9 +863,11 @@ gasto_mensual = (
     )
 )
 
+
 promedio_mensual = gasto_mensual[
     "Monto_CLP"
 ].mean()
+
 
 gasto_area = (
     df_filtrado
@@ -850,48 +882,60 @@ gasto_area = (
     )
 )
 
+
 area_mayor_gasto = gasto_area.iloc[
     0
 ]["Área"]
+
 
 monto_area_mayor = gasto_area.iloc[
     0
 ]["Monto_CLP"]
 
+
 gasto_ropa_periodo = df_filtrado.loc[
-    df_filtrado["Detalle"] == "Ropa de trabajo",
+    df_filtrado["Detalle"]
+    == "Ropa de trabajo",
     "Monto_CLP",
 ].sum()
 
+
 gasto_excel_periodo = df_filtrado.loc[
-    df_filtrado["Detalle"] == "Gasto registrado Excel",
+    df_filtrado["Detalle"]
+    == "Gasto registrado Excel",
     "Monto_CLP",
 ].sum()
+
 
 gasto_epp_total = df_filtrado.loc[
     df_filtrado["Área"] == "EPP",
     "Monto_CLP",
 ].sum()
 
+
 gasto_epp_excel = df_filtrado.loc[
     (
         df_filtrado["Área"] == "EPP"
     )
     & (
-        df_filtrado["Detalle"] == "Gasto registrado Excel"
+        df_filtrado["Detalle"]
+        == "Gasto registrado Excel"
     ),
     "Monto_CLP",
 ].sum()
+
 
 gasto_epp_ropa = df_filtrado.loc[
     (
         df_filtrado["Área"] == "EPP"
     )
     & (
-        df_filtrado["Detalle"] == "Ropa de trabajo"
+        df_filtrado["Detalle"]
+        == "Ropa de trabajo"
     ),
     "Monto_CLP",
 ].sum()
+
 
 participacion_epp = (
     gasto_epp_total / total_gasto
@@ -943,6 +987,7 @@ gasto_mensual_ahorro[
         else "Sobreconsumo"
     )
 )
+
 
 cantidad_meses = len(
     gasto_mensual_ahorro
@@ -1003,23 +1048,26 @@ st.subheader(
     "Resumen ejecutivo"
 )
 
-html_resumen = (
-    '<div class="resumen-ejecutivo">'
-    'Durante el periodo seleccionado, el gasto total considerado alcanzo '
-    f'<b>{formato_clp_html(total_gasto)}</b>, frente a un presupuesto oficial de '
-    f'<b>{formato_clp_html(presupuesto_periodo)}</b>. Esto representa un uso '
-    f'presupuestario de <b>{formato_porcentaje(porcentaje_uso_presupuesto)}</b> '
-    f'y un ahorro presupuestario de '
-    f'<b>{formato_porcentaje(porcentaje_ahorro_presupuestario)}</b>. '
-    f'El area con mayor incidencia fue <b>{area_mayor_gasto}</b>, con un monto '
-    f'de <b>{formato_clp_html(monto_area_mayor)}</b>. La ropa de trabajo fue '
-    'incorporada como gasto dentro del area <b>EPP</b>, sin modificar el '
-    'presupuesto oficial asignado.'
-    '</div>'
-)
-
 st.markdown(
-    html_resumen,
+    (
+        '<div class="resumen-ejecutivo">'
+        'Durante el periodo seleccionado, el gasto '
+        'total considerado alcanzo '
+        f'<b>{formato_clp_html(total_gasto)}</b>, '
+        'frente a un presupuesto oficial de '
+        f'<b>{formato_clp_html(presupuesto_periodo)}</b>. '
+        'Esto representa un uso presupuestario de '
+        f'<b>{formato_porcentaje(porcentaje_uso_presupuesto)}</b> '
+        'y un ahorro presupuestario de '
+        f'<b>{formato_porcentaje(porcentaje_ahorro_presupuestario)}</b>. '
+        'El area con mayor incidencia fue '
+        f'<b>{area_mayor_gasto}</b>, con un monto de '
+        f'<b>{formato_clp_html(monto_area_mayor)}</b>. '
+        'La ropa de trabajo se incorpora dentro del '
+        'area <b>EPP</b>, sin modificar el presupuesto '
+        'oficial asignado.'
+        '</div>'
+    ),
     unsafe_allow_html=True,
 )
 
@@ -1031,6 +1079,7 @@ st.markdown(
 st.subheader(
     "Indicadores principales"
 )
+
 
 col0, col1, col2, col3 = st.columns(
     4
@@ -1149,24 +1198,25 @@ st.subheader(
     "Analisis presupuestario"
 )
 
-html_nota = (
-    '<div class="nota-presupuesto">'
-    'El presupuesto mensual oficial se mantiene en '
-    f'<b>{formato_clp_html(PRESUPUESTO_MENSUAL)}</b>. '
-    'La ropa de trabajo se incorpora como gasto dentro del area '
-    '<b>EPP</b>, por un monto mensual de '
-    f'<b>{formato_clp_html(GASTO_MENSUAL_ROPA_TRABAJO)}</b>, '
-    'equivalente a '
-    f'<b>{formato_clp_html(GASTO_ANUAL_ROPA_TRABAJO)}</b> '
-    'anual. Este gasto no aumenta el presupuesto; solamente se suma '
-    'al gasto real considerado.'
-    '</div>'
-)
-
 st.markdown(
-    html_nota,
+    (
+        '<div class="nota-presupuesto">'
+        'El presupuesto mensual oficial se mantiene '
+        'en '
+        f'<b>{formato_clp_html(PRESUPUESTO_MENSUAL)}</b>. '
+        'La ropa de trabajo se incorpora como gasto '
+        'dentro del area <b>EPP</b>, por un monto '
+        'mensual de '
+        f'<b>{formato_clp_html(GASTO_MENSUAL_ROPA_TRABAJO)}</b>, '
+        'equivalente a '
+        f'<b>{formato_clp_html(GASTO_ANUAL_ROPA_TRABAJO)}</b> '
+        'anual. Este gasto no aumenta el presupuesto; '
+        'solamente se suma al gasto real considerado.'
+        '</div>'
+    ),
     unsafe_allow_html=True,
 )
+
 
 col_a1, col_a2, col_a3, col_a4 = st.columns(
     4
@@ -1213,8 +1263,11 @@ st.subheader(
     "Analisis especifico del area EPP"
 )
 
-col_epp1, col_epp2, col_epp3, col_epp4 = st.columns(
-    4
+
+col_epp1, col_epp2, col_epp3, col_epp4 = (
+    st.columns(
+        4
+    )
 )
 
 with col_epp1:
@@ -1264,7 +1317,10 @@ ranking_area[
     "Ranking"
 ] = range(
     1,
-    len(ranking_area) + 1,
+    len(
+        ranking_area
+    )
+    + 1,
 )
 
 ranking_area[
@@ -1282,30 +1338,27 @@ ranking_area[
 ].apply(
     lambda valor: (
         formato_porcentaje(
-            valor / total_gasto
+            valor
+            / total_gasto
         )
         if total_gasto > 0
         else "0,0%"
     )
 )
 
-ranking_area_mostrar = ranking_area[
-    [
-        "Ranking",
-        "Área",
-        "Monto",
-        "Participacion",
-    ]
-].copy()
-
-ranking_area_mostrar = ranking_area_mostrar.rename(
-    columns={
-        "Área": "Area",
-    }
-)
-
 st.dataframe(
-    ranking_area_mostrar,
+    ranking_area[
+        [
+            "Ranking",
+            "Área",
+            "Monto",
+            "Participacion",
+        ]
+    ].rename(
+        columns={
+            "Área": "Area",
+        }
+    ),
     use_container_width=True,
     hide_index=True,
 )
@@ -1377,14 +1430,12 @@ promedio_area_mostrar[
     formato_clp
 )
 
-promedio_area_mostrar = promedio_area_mostrar.rename(
-    columns={
-        "Área": "Area",
-    }
-)
-
 st.dataframe(
-    promedio_area_mostrar,
+    promedio_area_mostrar.rename(
+        columns={
+            "Área": "Area",
+        }
+    ),
     use_container_width=True,
     hide_index=True,
 )
@@ -1452,11 +1503,6 @@ fig_linea.add_trace(
             width=3,
             dash="dash",
         ),
-        hovertemplate=(
-            f"<b>Presupuesto mensual:</b> "
-            f"{formato_clp(PRESUPUESTO_MENSUAL)}"
-            "<extra></extra>"
-        ),
     )
 )
 
@@ -1474,13 +1520,11 @@ fig_linea = aplicar_formato_eje_clp(
     gasto_mensual,
 )
 
-fig_linea = aplicar_tema_grafico(
-    fig_linea,
-    altura=450,
-)
-
 st.plotly_chart(
-    fig_linea,
+    aplicar_tema_grafico(
+        fig_linea,
+        450,
+    ),
     use_container_width=True,
 )
 
@@ -1522,8 +1566,10 @@ comparativo_largo[
     "Indicador"
 ].replace(
     {
-        "Presupuesto_Mensual": "Presupuesto oficial",
-        "Monto_CLP": "Gasto considerado",
+        "Presupuesto_Mensual":
+            "Presupuesto oficial",
+        "Monto_CLP":
+            "Gasto considerado",
     }
 )
 
@@ -1541,25 +1587,15 @@ fig_comparativo = px.bar(
     y="Monto",
     color="Indicador",
     barmode="group",
-    title="Presupuesto oficial versus gasto considerado",
+    title=(
+        "Presupuesto oficial versus "
+        "gasto considerado"
+    ),
     text="Monto_Texto",
-    labels={
-        "Mes_Año": "Mes",
-        "Monto": "Monto CLP",
-        "Indicador": "Indicador",
-    },
-    custom_data=[
-        "Monto_Texto"
-    ],
 )
 
 fig_comparativo.update_traces(
     textposition="outside",
-    hovertemplate=(
-        "<b>Mes:</b> %{x}"
-        "<br><b>Monto:</b> %{customdata[0]}"
-        "<extra></extra>"
-    ),
 )
 
 fig_comparativo = aplicar_formato_eje_clp(
@@ -1568,13 +1604,11 @@ fig_comparativo = aplicar_formato_eje_clp(
     "Monto",
 )
 
-fig_comparativo = aplicar_tema_grafico(
-    fig_comparativo,
-    altura=470,
-)
-
 st.plotly_chart(
-    fig_comparativo,
+    aplicar_tema_grafico(
+        fig_comparativo,
+        470,
+    ),
     use_container_width=True,
 )
 
@@ -1588,14 +1622,6 @@ st.subheader(
 )
 
 gasto_mensual_ahorro[
-    "Ahorro_Texto"
-] = gasto_mensual_ahorro[
-    "Ahorro_Mensual"
-].apply(
-    formato_clp
-)
-
-gasto_mensual_ahorro[
     "Mes_Año"
 ] = gasto_mensual_ahorro[
     "Fecha_Mes"
@@ -1603,32 +1629,28 @@ gasto_mensual_ahorro[
     "%m-%Y"
 )
 
+gasto_mensual_ahorro[
+    "Ahorro_Texto"
+] = gasto_mensual_ahorro[
+    "Ahorro_Mensual"
+].apply(
+    formato_clp
+)
+
 fig_ahorro = px.bar(
     gasto_mensual_ahorro,
     x="Mes_Año",
     y="Ahorro_Mensual",
     color="Estado",
-    title="Resultado mensual frente al presupuesto oficial",
+    title=(
+        "Resultado mensual frente al "
+        "presupuesto oficial"
+    ),
     text="Ahorro_Texto",
-    labels={
-        "Mes_Año": "Mes",
-        "Ahorro_Mensual": "Ahorro / Sobreconsumo CLP",
-        "Estado": "Estado",
-    },
-    custom_data=[
-        "Ahorro_Texto",
-        "Estado",
-    ],
 )
 
 fig_ahorro.update_traces(
     textposition="outside",
-    hovertemplate=(
-        "<b>Mes:</b> %{x}"
-        "<br><b>Estado:</b> %{customdata[1]}"
-        "<br><b>Resultado:</b> %{customdata[0]}"
-        "<extra></extra>"
-    ),
 )
 
 fig_ahorro = aplicar_formato_eje_clp(
@@ -1638,13 +1660,11 @@ fig_ahorro = aplicar_formato_eje_clp(
     "Ahorro / Sobreconsumo CLP",
 )
 
-fig_ahorro = aplicar_tema_grafico(
-    fig_ahorro,
-    altura=470,
-)
-
 st.plotly_chart(
-    fig_ahorro,
+    aplicar_tema_grafico(
+        fig_ahorro,
+        470,
+    ),
     use_container_width=True,
 )
 
@@ -1670,43 +1690,27 @@ composicion = pd.DataFrame(
     }
 )
 
-composicion[
-    "Monto_Texto"
-] = composicion[
-    "Monto_CLP"
-].apply(
-    formato_clp
-)
-
 fig_composicion = px.pie(
     composicion,
     names="Origen del gasto",
     values="Monto_CLP",
-    title="Distribucion gasto registrado Excel vs ropa de trabajo",
+    title=(
+        "Distribucion gasto registrado "
+        "Excel vs ropa de trabajo"
+    ),
     hole=0.45,
-    custom_data=[
-        "Monto_Texto"
-    ],
 )
 
 fig_composicion.update_traces(
     textposition="inside",
     textinfo="percent+label",
-    hovertemplate=(
-        "<b>Origen:</b> %{label}"
-        "<br><b>Monto:</b> %{customdata[0]}"
-        "<br><b>Participacion:</b> %{percent}"
-        "<extra></extra>"
-    ),
-)
-
-fig_composicion = aplicar_tema_grafico(
-    fig_composicion,
-    altura=470,
 )
 
 st.plotly_chart(
-    fig_composicion,
+    aplicar_tema_grafico(
+        fig_composicion,
+        470,
+    ),
     use_container_width=True,
 )
 
@@ -1731,6 +1735,7 @@ gasto_area[
     formato_clp
 )
 
+
 with col_g1:
     fig_barra_area = px.bar(
         gasto_area,
@@ -1738,22 +1743,10 @@ with col_g1:
         y="Monto_CLP",
         title="Gasto total por area",
         text="Monto_Texto",
-        labels={
-            "Área": "Area",
-            "Monto_CLP": "Monto CLP",
-        },
-        custom_data=[
-            "Monto_Texto"
-        ],
     )
 
     fig_barra_area.update_traces(
         textposition="outside",
-        hovertemplate=(
-            "<b>Area:</b> %{x}"
-            "<br><b>Monto:</b> %{customdata[0]}"
-            "<extra></extra>"
-        ),
     )
 
     fig_barra_area.update_layout(
@@ -1765,14 +1758,13 @@ with col_g1:
         gasto_area,
     )
 
-    fig_barra_area = aplicar_tema_grafico(
-        fig_barra_area,
-    )
-
     st.plotly_chart(
-        fig_barra_area,
+        aplicar_tema_grafico(
+            fig_barra_area
+        ),
         use_container_width=True,
     )
+
 
 with col_g2:
     fig_torta_area = px.pie(
@@ -1781,28 +1773,17 @@ with col_g2:
         values="Monto_CLP",
         title="Distribucion porcentual por area",
         hole=0.45,
-        custom_data=[
-            "Monto_Texto"
-        ],
     )
 
     fig_torta_area.update_traces(
         textposition="inside",
         textinfo="percent+label",
-        hovertemplate=(
-            "<b>Area:</b> %{label}"
-            "<br><b>Monto:</b> %{customdata[0]}"
-            "<br><b>Participacion:</b> %{percent}"
-            "<extra></extra>"
-        ),
-    )
-
-    fig_torta_area = aplicar_tema_grafico(
-        fig_torta_area,
     )
 
     st.plotly_chart(
-        fig_torta_area,
+        aplicar_tema_grafico(
+            fig_torta_area
+        ),
         use_container_width=True,
     )
 
@@ -1897,33 +1878,29 @@ tabla_resumen = (
     )
 )
 
-tabla_resumen_mostrar = tabla_resumen.copy()
-
-tabla_resumen_mostrar[
+tabla_resumen[
     "Monto"
-] = tabla_resumen_mostrar[
+] = tabla_resumen[
     "Monto_CLP"
 ].apply(
     formato_clp
 )
 
-tabla_resumen_mostrar = tabla_resumen_mostrar.rename(
-    columns={
-        "Área": "Area",
-    }
-)
-
 st.dataframe(
-    tabla_resumen_mostrar[
+    tabla_resumen[
         [
             "Año",
             "Mes",
-            "Area",
+            "Área",
             "Tipo",
             "Detalle",
             "Monto",
         ]
-    ],
+    ].rename(
+        columns={
+            "Área": "Area",
+        }
+    ),
     use_container_width=True,
     hide_index=True,
 )
@@ -1933,15 +1910,19 @@ st.dataframe(
 # PIE DE PAGINA
 # ============================================================
 
-html_footer = (
-    '<div class="footer-panel">'
-    '<div class="footer-title">Panel desarrollado por Ricardo Grez</div>'
-    '<div class="footer-subtitle">Administrador de Contrato | SAIVAM</div>'
-    '<div class="footer-version">Version 1.0 | Ultima actualizacion: Mayo 2026</div>'
-    '</div>'
-)
-
 st.markdown(
-    html_footer,
+    (
+        '<div class="footer-panel">'
+        '<div class="footer-title">'
+        'Panel desarrollado por Ricardo Grez'
+        '</div>'
+        '<div class="footer-subtitle">'
+        'Administrador de Contrato | SAIVAM'
+        '</div>'
+        '<div class="footer-version">'
+        'Version 1.0 | Ultima actualizacion: Mayo 2026'
+        '</div>'
+        '</div>'
+    ),
     unsafe_allow_html=True,
 )
