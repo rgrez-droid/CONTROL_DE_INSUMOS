@@ -13,7 +13,7 @@ import streamlit as st
 # ============================================================
 
 st.set_page_config(
-    page_title="ANALISIS DE INSUMOS CTO MULCHEN",
+    page_title="ANALISIS DE INSUMOS CONTRATO MULCHEN",
     page_icon="📊",
     layout="wide",
 )
@@ -544,6 +544,18 @@ st.markdown(
         font-size: 16px;
     }}
 
+    /* Etiquetas de filtros con mayor contraste y legibilidad */
+    div[data-testid="stWidgetLabel"] p,
+    div[data-testid="stWidgetLabel"] label,
+    label[data-testid="stWidgetLabel"] p,
+    label[data-testid="stWidgetLabel"] {{
+        color: #F8FAFC !important;
+        opacity: 1 !important;
+        font-size: 15px !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.2px !important;
+    }}
+
     div[data-baseweb="select"] > div {{
         background-color:
             var(--fondo-secundario) !important;
@@ -551,6 +563,12 @@ st.markdown(
             var(--borde-suave) !important;
         color:
             var(--texto-principal) !important;
+    }}
+
+    div[data-baseweb="select"] input,
+    div[data-baseweb="select"] svg {{
+        color: #F8FAFC !important;
+        opacity: 1 !important;
     }}
 
     div[data-baseweb="tag"] {{
@@ -615,7 +633,7 @@ st.markdown(
     (
         '<div class="barra-superior">'
         '<div class="barra-superior-titulo">'
-        'ANALISIS DE INSUMOS DEL CONTRATO MULCHEN'
+        'ANALISIS DE INSUMOS CONTRATO MULCHEN'
         '</div>'
         '</div>'
     ),
@@ -769,14 +787,14 @@ with col_filtros:
 
     with col_f1:
         filtro_anio = st.multiselect(
-            "Año de analisis",
+            "Año",
             options=anios,
             default=anios,
         )
 
     with col_f2:
         filtro_mes = st.multiselect(
-            "Mes de analisis",
+            "Mes",
             options=meses,
             default=meses,
         )
