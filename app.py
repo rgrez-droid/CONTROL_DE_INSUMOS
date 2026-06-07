@@ -37,6 +37,7 @@ SELLO_AGUA = "logoredondo.png"
 # selfie_ricardo.png
 NOMBRE_INICIAL_SELFIE = "selfie"
 
+# Se utiliza internamente, pero no se muestra en los filtros.
 TIPO_FIJO = "Gasto"
 
 PRESUPUESTO_MENSUAL = 3_728_742
@@ -97,10 +98,9 @@ def buscar_imagen_selfie():
 
 def obtener_usuarios_autorizados():
     """
-    Los usuarios y contraseñas se leen desde
-    Streamlit Secrets.
+    Lee los usuarios y claves desde Streamlit Secrets.
 
-    Formato:
+    Formato esperado:
 
     [usuarios]
     ricardo = "ClaveSegura"
@@ -336,33 +336,81 @@ def tarjeta_metrica(
 
 def aplicar_tema_grafico(
     fig,
-    altura=460,
+    altura=470,
 ):
+    """
+    Aplica una configuracion visual de alto contraste
+    para que los titulos, ejes y leyendas sean visibles.
+    """
+
     fig.update_layout(
         height=altura,
-        title_font_size=20,
+        title=dict(
+            font=dict(
+                size=22,
+                color="#F8FAFC",
+                family="Arial Black",
+            ),
+            x=0.02,
+            xanchor="left",
+        ),
         font=dict(
-            color="#E5E7EB",
+            color="#F8FAFC",
+            size=14,
+            family="Arial",
         ),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
+        legend=dict(
+            title=dict(
+                font=dict(
+                    color="#F8FAFC",
+                    size=14,
+                )
+            ),
+            font=dict(
+                color="#F8FAFC",
+                size=14,
+            ),
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor="rgba(148,163,184,0.30)",
+            borderwidth=1,
+        ),
         legend_title_text="",
         margin=dict(
-            l=20,
-            r=20,
-            t=70,
-            b=30,
+            l=30,
+            r=30,
+            t=82,
+            b=42,
         ),
     )
 
     fig.update_xaxes(
-        color="#CBD5E1",
-        gridcolor="rgba(148,163,184,0.16)",
+        color="#F8FAFC",
+        title_font=dict(
+            color="#F8FAFC",
+            size=15,
+        ),
+        tickfont=dict(
+            color="#E5E7EB",
+            size=13,
+        ),
+        gridcolor="rgba(148,163,184,0.20)",
+        zerolinecolor="rgba(148,163,184,0.30)",
     )
 
     fig.update_yaxes(
-        color="#CBD5E1",
-        gridcolor="rgba(148,163,184,0.16)",
+        color="#F8FAFC",
+        title_font=dict(
+            color="#F8FAFC",
+            size=15,
+        ),
+        tickfont=dict(
+            color="#E5E7EB",
+            size=13,
+        ),
+        gridcolor="rgba(148,163,184,0.20)",
+        zerolinecolor="rgba(148,163,184,0.30)",
     )
 
     return fig
@@ -536,11 +584,6 @@ def mostrar_acceso_restringido():
             object-fit: cover;
             object-position:
                 center 46%;
-
-            /*
-            Un valor menor aleja la fotografia.
-            El valor anterior era 1.34.
-            */
             transform:
                 scale(1.16);
         }}
@@ -652,17 +695,6 @@ def mostrar_acceso_restringido():
                 #E93333 !important;
             border-color:
                 #E93333 !important;
-        }}
-
-        div[data-testid="stFormSubmitButton"] button:focus {{
-            color:
-                #FFFFFF !important;
-            background-color:
-                #F44040 !important;
-            border-color:
-                #F44040 !important;
-            box-shadow:
-                none !important;
         }}
 
         .pie-login {{
@@ -801,10 +833,6 @@ def mostrar_acceso_restringido():
             st.error(
                 mensaje
             )
-
-    # IMPORTANTE:
-    # El HTML del pie se genera como una sola cadena continua.
-    # Esto evita que Streamlit lo muestre como bloque de codigo.
 
     pie_login_html = (
         '<div class="pie-login">'
@@ -969,7 +997,7 @@ st.markdown(
         margin:
             6px auto 22px auto;
         padding:
-            20px 22px;
+            20px 22px 12px;
         background:
             rgba(43, 47, 52, 0.96);
         border:
@@ -998,22 +1026,6 @@ st.markdown(
         font-size: 14px;
         font-weight: 600;
         text-align: center;
-    }}
-
-    .filtro-fijo {{
-        margin-bottom: 2px;
-        padding:
-            14px 16px;
-        color:
-            var(--texto-principal);
-        background:
-            #24282D;
-        border:
-            1px solid
-            var(--borde-suave);
-        border-radius: 12px;
-        font-size: 16px;
-        font-weight: 750;
     }}
 
     .metric-card {{
@@ -1380,16 +1392,7 @@ with col_filtros:
         )
 
     st.markdown(
-        "**Tipo de gasto considerado**"
-    )
-
-    st.markdown(
-        (
-            '<div class="filtro-fijo">'
-            f'{TIPO_FIJO}'
-            '</div>'
-            '</div>'
-        ),
+        "</div>",
         unsafe_allow_html=True,
     )
 
@@ -2065,9 +2068,15 @@ fig_linea.add_trace(
         name="Gasto considerado",
         line=dict(
             width=4,
+            color="#60A5FA",
         ),
         marker=dict(
-            size=9,
+            size=10,
+            color="#818CF8",
+            line=dict(
+                width=2,
+                color="#FFFFFF",
+            ),
         ),
         customdata=gasto_mensual[
             "Monto_Texto"
@@ -2094,8 +2103,9 @@ fig_linea.add_trace(
         mode="lines",
         name="Presupuesto oficial mensual",
         line=dict(
-            width=3,
+            width=4,
             dash="dash",
+            color="#FB654F",
         ),
     )
 )
@@ -2107,6 +2117,7 @@ fig_linea.update_layout(
     ),
     hovermode="x unified",
     xaxis_title="Mes",
+    yaxis_title="Monto CLP",
 )
 
 fig_linea = aplicar_formato_eje_clp(
@@ -2117,9 +2128,12 @@ fig_linea = aplicar_formato_eje_clp(
 st.plotly_chart(
     aplicar_tema_grafico(
         fig_linea,
-        450,
+        470,
     ),
     use_container_width=True,
+    config={
+        "displayModeBar": False,
+    },
 )
 
 
@@ -2188,10 +2202,21 @@ fig_comparativo = px.bar(
         "gasto considerado"
     ),
     text="Monto_Texto",
+    color_discrete_map={
+        "Presupuesto oficial":
+            "#FB654F",
+        "Gasto considerado":
+            "#60A5FA",
+    },
 )
 
 fig_comparativo.update_traces(
     textposition="outside",
+    textfont=dict(
+        color="#FFFFFF",
+        size=13,
+    ),
+    cliponaxis=False,
 )
 
 fig_comparativo = aplicar_formato_eje_clp(
@@ -2203,9 +2228,12 @@ fig_comparativo = aplicar_formato_eje_clp(
 st.plotly_chart(
     aplicar_tema_grafico(
         fig_comparativo,
-        470,
+        500,
     ),
     use_container_width=True,
+    config={
+        "displayModeBar": False,
+    },
 )
 
 
@@ -2243,10 +2271,21 @@ fig_ahorro = px.bar(
         "presupuesto oficial"
     ),
     text="Ahorro_Texto",
+    color_discrete_map={
+        "Ahorro":
+            "#22C55E",
+        "Sobreconsumo":
+            "#EF4444",
+    },
 )
 
 fig_ahorro.update_traces(
     textposition="outside",
+    textfont=dict(
+        color="#FFFFFF",
+        size=13,
+    ),
+    cliponaxis=False,
 )
 
 fig_ahorro = aplicar_formato_eje_clp(
@@ -2259,9 +2298,12 @@ fig_ahorro = aplicar_formato_eje_clp(
 st.plotly_chart(
     aplicar_tema_grafico(
         fig_ahorro,
-        470,
+        500,
     ),
     use_container_width=True,
+    config={
+        "displayModeBar": False,
+    },
 )
 
 
@@ -2292,7 +2334,7 @@ fig_composicion = px.pie(
     values="Monto_CLP",
     title=(
         "Distribucion gasto registrado "
-        "Excel vs ropa de trabajo"
+        "Excel versus ropa de trabajo"
     ),
     hole=0.45,
 )
@@ -2300,14 +2342,21 @@ fig_composicion = px.pie(
 fig_composicion.update_traces(
     textposition="inside",
     textinfo="percent+label",
+    textfont=dict(
+        color="#FFFFFF",
+        size=15,
+    ),
 )
 
 st.plotly_chart(
     aplicar_tema_grafico(
         fig_composicion,
-        470,
+        500,
     ),
     use_container_width=True,
+    config={
+        "displayModeBar": False,
+    },
 )
 
 
@@ -2343,6 +2392,12 @@ with col_g1:
 
     fig_barra_area.update_traces(
         textposition="outside",
+        textfont=dict(
+            color="#FFFFFF",
+            size=13,
+        ),
+        marker_color="#60A5FA",
+        cliponaxis=False,
     )
 
     fig_barra_area.update_layout(
@@ -2356,9 +2411,13 @@ with col_g1:
 
     st.plotly_chart(
         aplicar_tema_grafico(
-            fig_barra_area
+            fig_barra_area,
+            500,
         ),
         use_container_width=True,
+        config={
+            "displayModeBar": False,
+        },
     )
 
 
@@ -2376,13 +2435,21 @@ with col_g2:
     fig_torta_area.update_traces(
         textposition="inside",
         textinfo="percent+label",
+        textfont=dict(
+            color="#FFFFFF",
+            size=14,
+        ),
     )
 
     st.plotly_chart(
         aplicar_tema_grafico(
-            fig_torta_area
+            fig_torta_area,
+            500,
         ),
         use_container_width=True,
+        config={
+            "displayModeBar": False,
+        },
     )
 
 
