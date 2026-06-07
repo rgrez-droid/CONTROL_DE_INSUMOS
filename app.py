@@ -1,4 +1,6 @@
 import base64
+import hmac
+import mimetypes
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +18,7 @@ st.set_page_config(
     page_title="ANALISIS DE INSUMOS CONTRATO MULCHEN",
     page_icon="📊",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 pio.templates.default = "plotly_dark"
@@ -27,13 +30,22 @@ HOJA_DATOS = "Fact_Solped_PBI"
 LOGO_SUPERIOR = "logo1.png"
 SELLO_AGUA = "logoredondo.png"
 
+# La fotografia debe comenzar por la palabra selfie.
+# Ejemplos:
+# selfie.png
+# selfie.jpg
+# selfie_ricardo.png
+NOMBRE_INICIAL_SELFIE = "selfie"
+
 TIPO_FIJO = "Gasto"
 
 PRESUPUESTO_MENSUAL = 3_728_742
 PRESUPUESTO_ANUAL = PRESUPUESTO_MENSUAL * 12
 
 GASTO_ANUAL_ROPA_TRABAJO = 9_000_000
-GASTO_MENSUAL_ROPA_TRABAJO = GASTO_ANUAL_ROPA_TRABAJO / 12
+GASTO_MENSUAL_ROPA_TRABAJO = (
+    GASTO_ANUAL_ROPA_TRABAJO / 12
+)
 
 
 # ============================================================
@@ -43,12 +55,101 @@ GASTO_MENSUAL_ROPA_TRABAJO = GASTO_ANUAL_ROPA_TRABAJO / 12
 def imagen_base64(ruta):
     ruta = Path(ruta)
 
-    if ruta.exists():
-        return base64.b64encode(
-            ruta.read_bytes()
-        ).decode()
+    if not ruta.exists():
+        return None
 
-    return None
+    contenido = base64.b64encode(
+        ruta.read_bytes()
+    ).decode("utf-8")
+
+    tipo_mime, _ = mimetypes.guess_type(
+        ruta.name
+    )
+
+    tipo_mime = tipo_mime or "image/png"
+
+    return (
+        f"data:{tipo_mime};"
+        f"base64,{contenido}"
+    )
+
+
+def buscar_imagen_selfie():
+    extensiones_validas = {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+    }
+
+    archivos = sorted(
+        archivo
+        for archivo in Path(".").glob(
+            f"{NOMBRE_INICIAL_SELFIE}*"
+        )
+        if archivo.is_file()
+        and archivo.suffix.lower()
+        in extensiones_validas
+    )
+
+    return archivos[0] if archivos else None
+
+
+def obtener_usuarios_autorizados():
+    """
+    Los usuarios y contraseñas se leen desde
+    Streamlit Secrets.
+
+    Formato:
+
+    [usuarios]
+    ricardo = "ClaveSegura"
+    supervisor = "OtraClave"
+    """
+
+    try:
+        return {
+            str(usuario).strip(): str(clave)
+            for usuario, clave
+            in st.secrets["usuarios"].items()
+        }
+
+    except Exception:
+        return {}
+
+
+def validar_credenciales(
+    usuario,
+    clave,
+):
+    usuarios = obtener_usuarios_autorizados()
+
+    usuario = str(usuario).strip()
+    clave = str(clave)
+
+    if not usuarios:
+        return (
+            False,
+            "No existen usuarios configurados. "
+            "Revise Streamlit Secrets.",
+        )
+
+    if usuario not in usuarios:
+        return (
+            False,
+            "Usuario o contraseña incorrectos.",
+        )
+
+    if not hmac.compare_digest(
+        clave,
+        usuarios[usuario],
+    ):
+        return (
+            False,
+            "Usuario o contraseña incorrectos.",
+        )
+
+    return True, None
 
 
 def formato_clp(valor):
@@ -130,7 +231,8 @@ def cargar_datos():
 
     except Exception as error:
         st.error(
-            f"No se pudo cargar el archivo Excel: {error}"
+            "No se pudo cargar el archivo Excel: "
+            f"{error}"
         )
 
         st.stop()
@@ -152,7 +254,8 @@ def cargar_datos():
 
     if faltantes:
         st.error(
-            f"Faltan columnas en la hoja '{HOJA_DATOS}': {faltantes}"
+            f"Faltan columnas en la hoja "
+            f"'{HOJA_DATOS}': {faltantes}"
         )
 
         st.stop()
@@ -214,9 +317,9 @@ def tarjeta_metrica(
 
     if subtitulo:
         subtitulo_html = (
-            f'<div class="metric-subtitle">'
+            '<div class="metric-subtitle">'
             f'{subtitulo}'
-            f'</div>'
+            '</div>'
         )
 
     st.markdown(
@@ -225,7 +328,7 @@ def tarjeta_metrica(
             f'<div class="metric-title">{titulo}</div>'
             f'<div class="metric-value">{valor}</div>'
             f'{subtitulo_html}'
-            f'</div>'
+            '</div>'
         ),
         unsafe_allow_html=True,
     )
@@ -283,15 +386,15 @@ def aplicar_formato_eje_clp(
     ].min()
 
     if maximo <= 0:
-        tickvals = [
-            0
-        ]
+        tickvals = [0]
 
     else:
         tickvals = sorted(
             set(
                 [
-                    -maximo if minimo < 0 else 0,
+                    -maximo
+                    if minimo < 0
+                    else 0,
                     0,
                     maximo * 0.25,
                     maximo * 0.50,
@@ -306,9 +409,7 @@ def aplicar_formato_eje_clp(
         tickmode="array",
         tickvals=tickvals,
         ticktext=[
-            formato_clp(
-                valor
-            )
+            formato_clp(valor)
             for valor in tickvals
         ],
         exponentformat="none",
@@ -319,7 +420,422 @@ def aplicar_formato_eje_clp(
 
 
 # ============================================================
-# DISENO VISUAL
+# CONTROL DE SESION
+# ============================================================
+
+if "acceso_autorizado" not in st.session_state:
+    st.session_state[
+        "acceso_autorizado"
+    ] = False
+
+
+# ============================================================
+# PANTALLA DE ACCESO RESTRINGIDO
+# ============================================================
+
+def mostrar_acceso_restringido():
+    selfie = buscar_imagen_selfie()
+
+    selfie_b64 = (
+        imagen_base64(selfie)
+        if selfie
+        else None
+    )
+
+    sello_login_b64 = imagen_base64(
+        SELLO_AGUA
+    )
+
+    marca_agua_css = ""
+
+    if sello_login_b64:
+        marca_agua_css = f"""
+        .stApp::before {{
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image:
+                url("{sello_login_b64}");
+            background-repeat:
+                no-repeat;
+            background-position:
+                center 51%;
+            background-size:
+                min(91vh, 820px);
+            opacity: 0.072;
+            z-index: 0;
+            pointer-events: none;
+        }}
+        """
+
+    st.markdown(
+        f"""
+        <style>
+
+        {marca_agua_css}
+
+        html,
+        body,
+        .stApp {{
+            min-height: 100vh;
+            background-color:
+                #10182B !important;
+            color:
+                #FFFFFF !important;
+        }}
+
+        .stApp {{
+            border-top:
+                1px solid
+                rgba(255, 255, 255, 0.95);
+        }}
+
+        header[data-testid="stHeader"],
+        div[data-testid="stToolbar"],
+        div[data-testid="stDecoration"],
+        footer,
+        section[data-testid="stSidebar"],
+        button[data-testid="stSidebarCollapsedControl"] {{
+            display: none !important;
+        }}
+
+        .block-container {{
+            max-width:
+                680px !important;
+            padding-top:
+                0.95rem !important;
+            padding-bottom:
+                0.25rem !important;
+            position: relative;
+            z-index: 1;
+        }}
+
+        .contenedor-avatar {{
+            display: flex;
+            justify-content: center;
+            margin:
+                0 auto 10px auto;
+        }}
+
+        .avatar-circular {{
+            width: 148px;
+            height: 148px;
+            overflow: hidden;
+            background-color: #D8D8D8;
+            border:
+                4px solid #F59E0B;
+            border-radius: 50%;
+            box-shadow:
+                0 2px 8px
+                rgba(0, 0, 0, 0.18);
+        }}
+
+        .avatar-circular img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position:
+                center 46%;
+
+            /*
+            Un valor menor aleja la fotografia.
+            El valor anterior era 1.34.
+            */
+            transform:
+                scale(1.16);
+        }}
+
+        .avatar-vacio {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 66px;
+        }}
+
+        .titulo-login {{
+            margin: 0;
+            color: #FFFFFF;
+            font-size: 35px;
+            font-weight: 900;
+            line-height: 1.12;
+            letter-spacing: -0.6px;
+            text-align: center;
+        }}
+
+        .subtitulo-login {{
+            margin-top: 10px;
+            margin-bottom: 13px;
+            color: #FFFFFF;
+            font-size: 15px;
+            font-weight: 500;
+            line-height: 1.3;
+            text-align: center;
+        }}
+
+        div[data-testid="stForm"] {{
+            padding: 0 !important;
+            background:
+                transparent !important;
+            border:
+                none !important;
+        }}
+
+        div[data-testid="stWidgetLabel"] p,
+        div[data-testid="stWidgetLabel"] label,
+        label[data-testid="stWidgetLabel"],
+        label[data-testid="stWidgetLabel"] p {{
+            color: #FFFFFF !important;
+            opacity: 1 !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+        }}
+
+        div[data-testid="stTextInput"] {{
+            margin-bottom: 0 !important;
+        }}
+
+        div[data-testid="stTextInput"] input {{
+            min-height:
+                39px !important;
+            color:
+                #111827 !important;
+            background-color:
+                #F8FAFC !important;
+            border:
+                1px solid
+                #E5E7EB !important;
+            border-radius:
+                8px !important;
+            caret-color:
+                #111827 !important;
+        }}
+
+        div[data-testid="stTextInput"] input:focus {{
+            border-color:
+                #CBD5E1 !important;
+            box-shadow:
+                none !important;
+        }}
+
+        div[data-testid="stTextInput"] button {{
+            color:
+                #374151 !important;
+        }}
+
+        div[data-testid="stFormSubmitButton"] {{
+            margin-top: 0 !important;
+        }}
+
+        div[data-testid="stFormSubmitButton"] button {{
+            width: 100%;
+            min-height:
+                39px !important;
+            color:
+                #FFFFFF !important;
+            background-color:
+                #F44040 !important;
+            border:
+                1px solid
+                #F44040 !important;
+            border-radius:
+                8px !important;
+            font-size:
+                14px !important;
+            font-weight:
+                700 !important;
+        }}
+
+        div[data-testid="stFormSubmitButton"] button:hover {{
+            color:
+                #FFFFFF !important;
+            background-color:
+                #E93333 !important;
+            border-color:
+                #E93333 !important;
+        }}
+
+        div[data-testid="stFormSubmitButton"] button:focus {{
+            color:
+                #FFFFFF !important;
+            background-color:
+                #F44040 !important;
+            border-color:
+                #F44040 !important;
+            box-shadow:
+                none !important;
+        }}
+
+        .pie-login {{
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top:
+                1px solid
+                rgba(148, 163, 184, 0.36);
+            text-align: center;
+        }}
+
+        .pie-login-titulo {{
+            color: #FFFFFF;
+            font-size: 13px;
+            font-weight: 800;
+        }}
+
+        .pie-login-subtitulo,
+        .pie-login-restringido {{
+            margin-top: 3px;
+            color: #7FB4F4;
+            font-size: 12px;
+            font-weight: 500;
+        }}
+
+        div[data-testid="stAlert"] {{
+            margin-top: 6px;
+            margin-bottom: 0;
+        }}
+
+        @media (max-width: 768px) {{
+            .block-container {{
+                max-width:
+                    92% !important;
+                padding-top:
+                    0.65rem !important;
+            }}
+
+            .avatar-circular {{
+                width: 132px;
+                height: 132px;
+            }}
+
+            .titulo-login {{
+                font-size: 29px;
+            }}
+
+            .subtitulo-login {{
+                margin-top: 7px;
+                margin-bottom: 10px;
+                font-size: 14px;
+            }}
+
+            .pie-login {{
+                margin-top: 10px;
+                padding-top: 8px;
+            }}
+        }}
+
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if selfie_b64:
+        avatar_html = (
+            '<div class="contenedor-avatar">'
+            '<div class="avatar-circular">'
+            f'<img src="{selfie_b64}" '
+            'alt="Fotografia de acceso">'
+            '</div>'
+            '</div>'
+        )
+
+    else:
+        avatar_html = (
+            '<div class="contenedor-avatar">'
+            '<div class="avatar-circular avatar-vacio">'
+            '👤'
+            '</div>'
+            '</div>'
+        )
+
+    st.markdown(
+        avatar_html,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        (
+            '<div class="titulo-login">'
+            '🔐 Acceso restringido'
+            '</div>'
+            '<div class="subtitulo-login">'
+            'Ingresa tu usuario y contraseña '
+            'para visualizar el panel.'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+    with st.form(
+        "formulario_acceso",
+        clear_on_submit=False,
+    ):
+        usuario = st.text_input(
+            "Usuario",
+            placeholder="",
+        )
+
+        clave = st.text_input(
+            "Contraseña",
+            type="password",
+            placeholder="",
+        )
+
+        ingresar = st.form_submit_button(
+            "Ingresar",
+            use_container_width=True,
+        )
+
+    if ingresar:
+        valido, mensaje = validar_credenciales(
+            usuario,
+            clave,
+        )
+
+        if valido:
+            st.session_state[
+                "acceso_autorizado"
+            ] = True
+
+            st.rerun()
+
+        else:
+            st.error(
+                mensaje
+            )
+
+    # IMPORTANTE:
+    # El HTML del pie se genera como una sola cadena continua.
+    # Esto evita que Streamlit lo muestre como bloque de codigo.
+
+    pie_login_html = (
+        '<div class="pie-login">'
+        '<div class="pie-login-titulo">'
+        'Panel desarrollado por Ricardo Grez'
+        '</div>'
+        '<div class="pie-login-subtitulo">'
+        'Administrador de Contrato | SAIVAM'
+        '</div>'
+        '<div class="pie-login-restringido">'
+        'Acceso restringido para usuarios autorizados'
+        '</div>'
+        '</div>'
+    )
+
+    st.markdown(
+        pie_login_html,
+        unsafe_allow_html=True,
+    )
+
+    st.stop()
+
+
+if not st.session_state[
+    "acceso_autorizado"
+]:
+    mostrar_acceso_restringido()
+
+
+# ============================================================
+# ESTILOS DEL PANEL PRINCIPAL
 # ============================================================
 
 sello_b64 = imagen_base64(
@@ -335,14 +851,18 @@ if sello_b64:
         position: fixed;
         top: 17%;
         left: 50%;
-        transform: translateX(-50%);
+        transform:
+            translateX(-50%);
         width: 760px;
         height: 760px;
         background-image:
-            url("data:image/png;base64,{sello_b64}");
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
+            url("{sello_b64}");
+        background-repeat:
+            no-repeat;
+        background-position:
+            center;
+        background-size:
+            contain;
         opacity: 0.075;
         z-index: 0;
         pointer-events: none;
@@ -372,8 +892,10 @@ st.markdown(
 
     body,
     .stApp {{
-        background-color: var(--fondo-principal);
-        color: var(--texto-principal);
+        background-color:
+            var(--fondo-principal) !important;
+        color:
+            var(--texto-principal) !important;
     }}
 
     header[data-testid="stHeader"],
@@ -389,16 +911,19 @@ st.markdown(
         top: 0;
         left: 0;
         right: 0;
-        height: 64px;
         z-index: 999999;
         display: flex;
+        height: 64px;
         align-items: center;
         justify-content: center;
-        background: rgba(21, 23, 26, 0.98);
+        background:
+            rgba(21, 23, 26, 0.98);
         border-bottom:
-            1px solid rgba(148, 163, 184, 0.26);
+            1px solid
+            rgba(148, 163, 184, 0.26);
         box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.30);
+            0 4px 16px
+            rgba(0, 0, 0, 0.30);
     }}
 
     .barra-superior-titulo {{
@@ -410,8 +935,11 @@ st.markdown(
     }}
 
     .block-container {{
-        padding-top: 5.6rem;
-        padding-bottom: 1.5rem;
+        max-width: 100% !important;
+        padding-top:
+            5.6rem !important;
+        padding-bottom:
+            1.5rem !important;
         position: relative;
         z-index: 1;
     }}
@@ -419,34 +947,44 @@ st.markdown(
     h1,
     h2,
     h3 {{
-        color: var(--texto-principal) !important;
+        color:
+            var(--texto-principal) !important;
         font-weight: 800;
     }}
 
     hr {{
-        border-color: rgba(148, 163, 184, 0.25);
+        border-color:
+            rgba(148, 163, 184, 0.25);
     }}
 
     .texto-intro {{
         max-width: 980px;
-        color: var(--texto-secundario);
+        color:
+            var(--texto-secundario);
         font-size: 17px;
         line-height: 1.55;
     }}
 
     .panel-filtros {{
-        margin: 6px auto 22px auto;
-        padding: 20px 22px;
-        background: rgba(43, 47, 52, 0.96);
-        border: 1px solid var(--borde-suave);
+        margin:
+            6px auto 22px auto;
+        padding:
+            20px 22px;
+        background:
+            rgba(43, 47, 52, 0.96);
+        border:
+            1px solid
+            var(--borde-suave);
         border-radius: 16px;
         box-shadow:
-            0 5px 18px rgba(0, 0, 0, 0.18);
+            0 5px 18px
+            rgba(0, 0, 0, 0.18);
     }}
 
     .titulo-panel-filtros {{
         margin-bottom: 4px;
-        color: var(--texto-principal);
+        color:
+            var(--texto-principal);
         font-size: 21px;
         font-weight: 850;
         text-align: center;
@@ -455,7 +993,8 @@ st.markdown(
 
     .subtitulo-panel-filtros {{
         margin-bottom: 16px;
-        color: var(--texto-secundario);
+        color:
+            var(--texto-secundario);
         font-size: 14px;
         font-weight: 600;
         text-align: center;
@@ -463,36 +1002,46 @@ st.markdown(
 
     .filtro-fijo {{
         margin-bottom: 2px;
-        padding: 14px 16px;
-        color: var(--texto-principal);
-        background: #24282D;
-        border: 1px solid var(--borde-suave);
+        padding:
+            14px 16px;
+        color:
+            var(--texto-principal);
+        background:
+            #24282D;
+        border:
+            1px solid
+            var(--borde-suave);
         border-radius: 12px;
         font-size: 16px;
         font-weight: 750;
-        letter-spacing: 0.2px;
     }}
 
     .metric-card {{
         min-height: 112px;
         margin-bottom: 14px;
         padding: 18px;
-        background: rgba(49, 53, 59, 0.96);
-        border: 1px solid var(--borde-suave);
+        background:
+            rgba(49, 53, 59, 0.96);
+        border:
+            1px solid
+            var(--borde-suave);
         border-radius: 18px;
         box-shadow:
-            0 5px 18px rgba(0, 0, 0, 0.20);
+            0 5px 18px
+            rgba(0, 0, 0, 0.20);
     }}
 
     .metric-title {{
         margin-bottom: 8px;
-        color: var(--texto-secundario);
+        color:
+            var(--texto-secundario);
         font-size: 14px;
         font-weight: 700;
     }}
 
     .metric-value {{
-        color: var(--texto-principal);
+        color:
+            var(--texto-principal);
         font-size: 27px;
         font-weight: 850;
         line-height: 1.15;
@@ -500,7 +1049,8 @@ st.markdown(
 
     .metric-subtitle {{
         margin-top: 8px;
-        color: var(--texto-muted);
+        color:
+            var(--texto-muted);
         font-size: 13px;
         font-weight: 600;
     }}
@@ -513,25 +1063,35 @@ st.markdown(
     }}
 
     .estado-ok {{
-        border-left: 7px solid #22C55E;
+        border-left:
+            7px solid #22C55E;
     }}
 
     .estado-alerta {{
-        border-left: 7px solid #F59E0B;
+        border-left:
+            7px solid #F59E0B;
     }}
 
     .estado-critico {{
-        border-left: 7px solid #EF4444;
+        border-left:
+            7px solid #EF4444;
     }}
 
     .nota-presupuesto,
     .resumen-ejecutivo {{
         margin-bottom: 18px;
-        padding: 16px 20px;
-        color: var(--texto-secundario);
-        background: rgba(43, 47, 52, 0.96);
-        border: 1px solid var(--borde-suave);
-        border-left: 5px solid var(--acento);
+        padding:
+            16px 20px;
+        color:
+            var(--texto-secundario);
+        background:
+            rgba(43, 47, 52, 0.96);
+        border:
+            1px solid
+            var(--borde-suave);
+        border-left:
+            5px solid
+            var(--acento);
         border-radius: 12px;
         font-size: 15px;
         line-height: 1.65;
@@ -544,43 +1104,50 @@ st.markdown(
         font-size: 16px;
     }}
 
-    /* Etiquetas de filtros con mayor contraste y legibilidad */
     div[data-testid="stWidgetLabel"] p,
     div[data-testid="stWidgetLabel"] label,
     label[data-testid="stWidgetLabel"] p,
     label[data-testid="stWidgetLabel"] {{
-        color: #F8FAFC !important;
-        opacity: 1 !important;
-        font-size: 15px !important;
-        font-weight: 800 !important;
-        letter-spacing: 0.2px !important;
+        color:
+            #F8FAFC !important;
+        opacity:
+            1 !important;
+        font-size:
+            15px !important;
+        font-weight:
+            800 !important;
     }}
 
     div[data-baseweb="select"] > div {{
+        color:
+            var(--texto-principal) !important;
         background-color:
             var(--fondo-secundario) !important;
         border-color:
             var(--borde-suave) !important;
-        color:
-            var(--texto-principal) !important;
     }}
 
     div[data-baseweb="select"] input,
     div[data-baseweb="select"] svg {{
-        color: #F8FAFC !important;
-        opacity: 1 !important;
+        color:
+            #F8FAFC !important;
+        opacity:
+            1 !important;
     }}
 
     div[data-baseweb="tag"] {{
-        background-color: #3B82F6 !important;
+        background-color:
+            #3B82F6 !important;
     }}
 
     .footer-panel {{
         width: 100%;
         margin-top: 44px;
-        padding: 20px 0 14px;
+        padding:
+            20px 0 14px;
         border-top:
-            1px solid rgba(148, 163, 184, 0.30);
+            1px solid
+            rgba(148, 163, 184, 0.30);
         text-align: center;
     }}
 
@@ -606,7 +1173,8 @@ st.markdown(
     @media (max-width: 768px) {{
         .barra-superior {{
             height: 58px;
-            padding: 0 12px;
+            padding:
+                0 12px;
         }}
 
         .barra-superior-titulo {{
@@ -615,7 +1183,8 @@ st.markdown(
         }}
 
         .block-container {{
-            padding-top: 4.8rem;
+            padding-top:
+                4.8rem !important;
         }}
     }}
 
@@ -656,7 +1225,9 @@ if TIPO_FIJO in df[
     ].copy()
 
 
-df["Detalle"] = "Gasto registrado Excel"
+df["Detalle"] = (
+    "Gasto registrado Excel"
+)
 
 meses_base = df[
     [
@@ -673,7 +1244,9 @@ df_ropa["Tipo"] = TIPO_FIJO
 df_ropa["Monto_CLP"] = (
     GASTO_MENSUAL_ROPA_TRABAJO
 )
-df_ropa["Detalle"] = "Ropa de trabajo"
+df_ropa["Detalle"] = (
+    "Ropa de trabajo"
+)
 
 df = pd.concat(
     [
@@ -824,8 +1397,10 @@ with col_filtros:
 st.divider()
 
 
-# El filtro de detalle fue eliminado.
-# Ambos conceptos se consideran internamente.
+# ============================================================
+# APLICACION DE FILTROS
+# ============================================================
+
 df_filtrado = df[
     (
         df["Año"]
@@ -966,7 +1541,9 @@ participacion_epp = (
 # PRESUPUESTO Y AHORRO
 # ============================================================
 
-gasto_mensual_ahorro = gasto_mensual.copy()
+gasto_mensual_ahorro = (
+    gasto_mensual.copy()
+)
 
 gasto_mensual_ahorro[
     "Presupuesto_Mensual"
@@ -1097,7 +1674,6 @@ st.markdown(
 st.subheader(
     "Indicadores principales"
 )
-
 
 col0, col1, col2, col3 = st.columns(
     4
@@ -1281,7 +1857,6 @@ st.subheader(
     "Analisis especifico del area EPP"
 )
 
-
 col_epp1, col_epp2, col_epp3, col_epp4 = (
     st.columns(
         4
@@ -1356,8 +1931,7 @@ ranking_area[
 ].apply(
     lambda valor: (
         formato_porcentaje(
-            valor
-            / total_gasto
+            valor / total_gasto
         )
         if total_gasto > 0
         else "0,0%"
@@ -1430,7 +2004,9 @@ promedio_area = (
     )
 )
 
-promedio_area_mostrar = promedio_area.copy()
+promedio_area_mostrar = (
+    promedio_area.copy()
+)
 
 promedio_area_mostrar[
     "Gasto_Total"
@@ -1555,7 +2131,9 @@ st.subheader(
     "Comparativo mensual: presupuesto versus gasto considerado"
 )
 
-comparativo = gasto_mensual_ahorro.copy()
+comparativo = (
+    gasto_mensual_ahorro.copy()
+)
 
 comparativo[
     "Mes_Año"
@@ -1789,7 +2367,9 @@ with col_g2:
         gasto_area,
         names="Área",
         values="Monto_CLP",
-        title="Distribucion porcentual por area",
+        title=(
+            "Distribucion porcentual por area"
+        ),
         hole=0.45,
     )
 
@@ -1814,7 +2394,9 @@ st.subheader(
     "Detalle mensual de presupuesto, ahorro y desviacion"
 )
 
-tabla_ahorro = gasto_mensual_ahorro.copy()
+tabla_ahorro = (
+    gasto_mensual_ahorro.copy()
+)
 
 tabla_ahorro[
     "Presupuesto Oficial"
